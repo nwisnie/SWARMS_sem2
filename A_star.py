@@ -4,7 +4,6 @@ from scipy.interpolate import CubicSpline, interp1d
 from scipy.integrate import cumtrapz
 import heapq
 import numpy as np
-import copy
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -135,10 +134,10 @@ def get_path(curPos, gatePos):
     gridY = int((maxY-minY)//0.25)
     gridZ = int((maxZ-minZ)//0.25)
 
-    # print("dimensions:")
-    # print(gridX)
-    # print(gridY)
-    # print(gridZ)
+    print("dimensions:")
+    print(gridX)
+    print(gridY)
+    print(gridZ)
 
     # really scuffed fix to grid generation issue
     if gridX == 0:
@@ -169,6 +168,8 @@ def get_path(curPos, gatePos):
     # convert back to airsim gridspace
     for i in a_star_path:
         actual_path.append((minX+i[0]*0.25, minY+i[1]*0.25, minZ+i[2]*0.25))
+    print(actual_path)
+    
 
     return actual_path
 
@@ -213,6 +214,8 @@ def gen_spline(waypoints, num_points):
     path_z = spline_z(t_even)
     path = np.stack((path_x, path_y, path_z), axis=-1)
 
+    print(path)
+
     return path
 
 
@@ -251,7 +254,7 @@ for gate in gates:
 
     # generate a spline based on the A* result:
     # I do this because I want to keep A* low resolution for faster runtime
-    # path = gen_spline(path, 50)
+    path = gen_spline(path, 50)
     # print(path)
 
     # if path != None:
