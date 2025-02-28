@@ -100,9 +100,6 @@ for i in path:
 # print(moveList)
 
 
-
-
-
 print("start here:")
 
 client.simStartRace(2)
