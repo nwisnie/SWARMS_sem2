@@ -2,6 +2,10 @@ import heapq
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import CubicSpline, interp1d
+from scipy.integrate import cumtrapz
+import time
+
 
 class Node:
     def __init__(self, position, parent=None, g=0, h=0):
@@ -14,14 +18,24 @@ class Node:
     def __lt__(self, other):
         return self.f < other.f  # Needed for priority queue sorting
 
+
 def get_dist(a, b):
     return np.linalg.norm(np.array(a) - np.array(b))
 
+
 def get_neighbors(position):
+    # x, y, z = position
+    # neighbors = [(x + dx, y + dy, z + dz) for dx in [-1, 0, 1] for dy in [-1, 0, 1] for dz in [-1, 0, 1]
+    #              if not (dx == 0 and dy == 0 and dz == 0)]
+    # return neighbors
     x, y, z = position
-    neighbors = [(x + dx, y + dy, z + dz) for dx in [-1, 0, 1] for dy in [-1, 0, 1] for dz in [-1, 0, 1]
-                 if not (dx == 0 and dy == 0 and dz == 0)]
+    neighbors = [
+        (x+1, y, z), (x, y+1, z), (x, y, z+1),
+        (x-1, y, z), (x, y-1, z), (x, y, z-1)
+    ]
+    # Filter neighbors to stay within grid bounds
     return neighbors
+
 
 def a_star_3d(grid, start, goal):
     open_set = []
@@ -57,7 +71,13 @@ def a_star_3d(grid, start, goal):
 
     return None  # No path found
 
-def plot_path_3d(grid, path, start, goal):
+
+# plot smoother and original path
+def plot_path_3d(grid, path, spline, start, goal):
+
+    print(path)
+    print(spline)
+
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111, projection='3d')
 
@@ -83,45 +103,92 @@ def plot_path_3d(grid, path, start, goal):
         path_z = [p[2] for p in path]
         ax.plot(path_x, path_y, path_z, color="blue", linewidth=2, label="Path")
 
+    spline_x = [p[0] for p in spline]
+    spline_y = [p[1] for p in spline]
+    spline_z = [p[2] for p in spline]
+    ax.plot(spline_x, spline_y, spline_z, color="green", linewidth=2, label="Spline")
+
     ax.set_xlabel("X Axis")
     ax.set_ylabel("Y Axis")
     ax.set_zlabel("Z Axis")
     ax.legend()
     plt.show()
 
+def gen_spline(waypoints, num_points):
+
+    path_x = []
+    path_y = []
+    path_z = []
+    for i in waypoints:
+        path_x.append(i[0])
+        path_y.append(i[1])
+        path_z.append(i[2])
+
+    t = np.linspace(0, 1, len(waypoints))
+
+    spline_x = CubicSpline(t, path_x)
+    spline_y = CubicSpline(t, path_y)
+    spline_z = CubicSpline(t, path_z)
+
+    dt = 0.01  # Small time step for numerical differentiation
+    t_fine = np.arange(0, 1, dt)
+    dx_dt = spline_x(t_fine, 1)
+    dy_dt = spline_y(t_fine, 1)
+    dz_dt = spline_z(t_fine, 1)
+
+    # Compute the differential arc length
+    d_length = np.sqrt(dx_dt**2 + dy_dt**2 + dz_dt**2)
+    arc_length = cumtrapz(d_length, t_fine, initial=0)
+
+    # Step 2: Interpolate to find evenly spaced points along arc length
+    total_length = arc_length[-1]
+    even_arc_lengths = np.linspace(0, total_length, num_points)
+    t_even = interp1d(arc_length, t_fine)(even_arc_lengths)
+
+    # Step 3: Evaluate splines at these new t values
+    path_x = spline_x(t_even)
+    path_y = spline_y(t_even)
+    path_z = spline_z(t_even)
+    path = np.stack((path_x, path_y, path_z), axis=-1)
+
+    # print(path)
+
+    return path
 
 
-# Example 3D grid (0 = walkable, 1 = obstacle)
-grid = np.zeros((5, 5, 5), dtype=int)
 
-# Very tedius way to define obstacles
-grid[2, 2, 1] = 1
-grid[2, 2, 2] = 1
-grid[2, 2, 3] = 1
 
-grid[2, 1, 1] = 1
-grid[2, 1, 2] = 1
-grid[2, 1, 3] = 1
+# testing weird dimensions
 
-grid[1, 2, 1] = 1
-grid[1, 2, 2] = 1
-grid[1, 2, 3] = 1
-
-grid[1, 3, 4] = 1
-grid[2, 3, 4] = 1
-grid[3, 3, 4] = 1
-
-grid[1, 4, 4] = 1
-grid[2, 4, 4] = 1
-grid[3, 4, 4] = 1
-
+grid = np.zeros((7, 10, 15), dtype=int)
 start = (0, 0, 0)
-goal = (4, 4, 4)
+goal = (6, 9, 14)
+
+# test timing
+
+# start_time = time.time()
+# a_star_3d(grid, start, goal)
+# end_time = time.time()
+# measured_time = end_time - start_time
+# print(end_time-start_time)
 
 path = a_star_3d(grid, start, goal)
 
-if path:
-    print("Path:", path)
-    plot_path_3d(grid, path, start, goal)
-else:
-    print("No path found.")
+print("Path:", path)
+
+# spline test 1
+# spline = gen_spline(path, 5)
+
+# spline test 2
+# take average of 4 points
+spline = []
+for i in range(len(path) - 4):
+    tempX = (path[i][0] + path[i+1][0] + path[i+2][0] + path[i+3][0]) / 4
+    tempY = (path[i][1] + path[i+1][1] + path[i+2][1] + path[i+3][1]) / 4
+    tempZ = (path[i][2] + path[i+1][2] + path[i+2][2] + path[i+3][2]) / 4
+    spline.append((tempX,tempY,tempZ))
+
+spline[0] = path[0]
+spline[-1] = path[-1]
+
+plot_path_3d(grid, path, spline, start, goal)
