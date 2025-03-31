@@ -37,7 +37,7 @@ def get_neighbors(position):
     return neighbors
 
 
-def a_star_3d(grid, start, goal):
+def a_star_3d(grid, start, goal, vel_bias):
     open_set = []
     closed_set = set()
     start_node = Node(start, None, 0, get_dist(start, goal))
@@ -63,7 +63,16 @@ def a_star_3d(grid, start, goal):
                 grid[x][y][z] == 0 and neighbor not in closed_set):
                 
                 g_cost = current_node.g + 1
-                h_cost = get_dist(neighbor, goal)
+
+                # I do velocity bias finding distance from each point to starting point
+                # then scaling with the veloctiy amount
+                x_bias = vel_bias[0] / max(abs(x - start[0]), 1)
+                y_bias = vel_bias[1] / max(abs(y - start[1]), 1)
+                z_bias = vel_bias[2] / max(abs(z - start[2]), 1)
+                neighbor_weighted = (neighbor[0] + x_bias, neighbor[1] + y_bias, neighbor[2] + z_bias)
+
+                # was just neighbor
+                h_cost = get_dist(neighbor_weighted, goal)
                 neighbor_node = Node(neighbor, current_node, g_cost, h_cost)
 
                 if not any(node.position == neighbor and node.f <= neighbor_node.f for node in open_set):
@@ -72,7 +81,6 @@ def a_star_3d(grid, start, goal):
     return None  # No path found
 
 
-# plot smoother and original path
 def plot_path_3d(grid, path, spline, start, goal):
 
     print(path)
@@ -156,15 +164,12 @@ def gen_spline(waypoints, num_points):
     return path
 
 
-
-
-# testing weird dimensions
-
-grid = np.zeros((7, 10, 15), dtype=int)
+grid = np.zeros((11, 11, 11), dtype=int)
 start = (0, 0, 0)
-goal = (6, 9, 14)
+goal = (10, 10, 10)
 
-# test timing
+# added: initial velocty at starting point
+vel_bias = (0,0,0)
 
 # start_time = time.time()
 # a_star_3d(grid, start, goal)
@@ -172,7 +177,7 @@ goal = (6, 9, 14)
 # measured_time = end_time - start_time
 # print(end_time-start_time)
 
-path = a_star_3d(grid, start, goal)
+path = a_star_3d(grid, start, goal, vel_bias)
 
 print("Path:", path)
 
@@ -180,7 +185,7 @@ print("Path:", path)
 # spline = gen_spline(path, 5)
 
 # spline test 2
-# take average of 4 points
+# take average of 3 points
 spline = []
 for i in range(len(path) - 4):
     tempX = (path[i][0] + path[i+1][0] + path[i+2][0] + path[i+3][0]) / 4
